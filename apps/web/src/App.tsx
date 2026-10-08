@@ -48,7 +48,7 @@ export function App() {
 
   return (
     <div className="flex h-full">
-      <aside className="flex w-[400px] shrink-0 flex-col border-r border-slate-200 bg-slate-50">
+      <aside className="flex w-100 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
         <header className="flex items-center gap-2 bg-white px-4 pt-3">
           <img src="/logo.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0" />
           <div>
