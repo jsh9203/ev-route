@@ -48,7 +48,8 @@ export function listAvailability(s: StationListItem): Availability {
 
 export const AVAILABILITY_COLOR: Record<Availability, string> = {
   good: '#16a34a',
-  few: '#ea580c',
+  /** 출발 핀·선택 경로(#2563eb)와 구분되도록 하늘색 계열 */
+  few: '#0284c7',
   /** 모두 충전 중 — 빨강은 슈퍼차저 전용이라 짙은 회색 */
   none: '#1e293b',
   unknown: '#64748b',
