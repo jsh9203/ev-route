@@ -5,7 +5,7 @@ import {
   type ChargingFee, type TripBattery, type VehiclePreset,
 } from '@ev-route/shared';
 import type { PriceBook } from '../pricing/priceBook';
-import { chargeWindow, socUsedPct, type BatteryInput } from '../battery/battery';
+import { chargeWindow, socUsedPct, type BatteryInput, type ChargeWindow } from '../battery/battery';
 import { haversineM } from '../geo';
 import { RouteLine } from '../route/routeLine';
 import type { StationIndex } from '../stations/stationIndex';
@@ -37,18 +37,44 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
   const line = new RouteLine(base.coords, base.segmentRoadTypes);
   const totalKm = base.distanceM / 1000;
 
+  const wantSupercharger = prefs.preferSupercharger || prefs.superchargerOnly;
+  const ctxFor = (b: BatteryInput): EvalContext => ({
+    battery: b, totalKm, baseDurationS: base.durationS,
+    preferredOperatorIds: prefs.preferredOperatorIds, allowFullStations: prefs.allowFullStations, forceCharge: prefs.forceCharge,
+  });
+  /** 충전 구간 안의 후보를 근사 비용순으로 */
+  const searchApprox = (b: BatteryInput, w: ChargeWindow) => {
+    const ctx = ctxFor(b);
+    return findCandidates({
+      index: deps.index, line, fromKm: w.minKm, toKm: w.maxKm,
+      bufferM: prefs.bufferKm * 1000, preset, minOutputKw: prefs.minOutputKw,
+    })
+      .filter((c) => !prefs.superchargerOnly || c.station.source === 'supercharger')
+      .flatMap((c) => {
+        const d = approxDetour(c);
+        const e = d && evaluate(c, d, { statuses: undefined, source: 'unavailable' }, ctx);
+        return e ? [{ e, d: d! }] : [];
+      })
+      .sort((a, b) => a.e.cost.total - b.e.cost.total);
+  };
+
   let battery: BatteryInput = { preset, ...req.vehicle };
   let win = chargeWindow(battery, totalKm, prefs.forceCharge);
-  if (win.needed && !win.feasible && win.maxKm > 0 && battery.chargeCapSocPct < 100) {
-    // 충전 상한까지만으로는 한 번에 못 가면, 상한을 100% 로 올려 1회 충전이 가능한지 다시 본다 (80% 이상은 곡선상 느리게 계산됨)
+  let approx = (win.needed || prefs.forceCharge) && win.feasible && win.maxKm > 0 ? searchApprox(battery, win) : [];
+  // 충전 상한으로는 1회 충전이 불가능하거나(구간 없음), 구간이 너무 좁아 후보가 없으면
+  // 상한을 100% 로 올려 다시 찾는다 (예: 도착 목표 = 충전 상한이면 구간 길이가 0). 80% 이상은 곡선상 느리게 계산됨
+  if (win.needed && win.maxKm > 0 && approx.length === 0 && battery.chargeCapSocPct < 100) {
     const raised = { ...battery, chargeCapSocPct: 100 };
     const w = chargeWindow(raised, totalKm, prefs.forceCharge);
-    if (w.feasible) {
+    const found = w.feasible ? searchApprox(raised, w) : [];
+    if (w.feasible && (found.length > 0 || !win.feasible)) {
       battery = raised;
       win = w;
+      approx = found;
       warnings.push('CHARGE_CAP_RAISED');
     }
   }
+  const ctx = ctxFor(battery);
   const tripUsePct = socUsedPct(preset, totalKm);
   const tripBattery: TripBattery = {
     tripUsePct: round1(tripUsePct),
@@ -64,22 +90,7 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
   if (!win.feasible) return empty([round1(win.minKm), round1(win.maxKm)], ['MULTI_STOP_REQUIRED']);
   const windowKm: [number, number] = [round1(win.minKm), round1(win.maxKm)];
 
-  // 1차 후보 → 근사 우회 → 상위 K
-  const wantSupercharger = prefs.preferSupercharger || prefs.superchargerOnly;
-  const candidates = findCandidates({
-    index: deps.index, line, fromKm: win.minKm, toKm: win.maxKm,
-    bufferM: prefs.bufferKm * 1000, preset, minOutputKw: prefs.minOutputKw,
-  }).filter((c) => !prefs.superchargerOnly || c.station.source === 'supercharger');
-  const ctx: EvalContext = {
-    battery, totalKm, baseDurationS: base.durationS,
-    preferredOperatorIds: prefs.preferredOperatorIds, allowFullStations: prefs.allowFullStations, forceCharge: prefs.forceCharge,
-  };
-  const approx = candidates.flatMap((c) => {
-    const d = approxDetour(c);
-    const e = d && evaluate(c, d, { statuses: undefined, source: 'unavailable' }, ctx);
-    return e ? [{ e, d: d! }] : [];
-  });
-  approx.sort((a, b) => a.e.cost.total - b.e.cost.total);
+  // 근사 비용 상위 K
   if (wantSupercharger && !approx.some((x) => isSupercharger(x.e))) warnings.push('NO_SUPERCHARGER');
   const topK = approx.slice(0, SCORING.candidateK);
   // 슈퍼차저 우선이면 상위 K 밖의 슈퍼차저도 2곳까지 끌어와 비교 대상에 넣는다

@@ -152,6 +152,19 @@ describe('recommend', () => {
     expect(on.recommended!.station.id).toBe('SC');
   });
 
+  it('도착 목표 = 충전 상한이라 충전 구간 길이가 0 이어도, 상한을 올려 도착지 근처 충전소를 찾는다', async () => {
+    // 100km 경로, 출발 100% → 도착 73.3%, 목표 80% · 상한 80% → 원래 구간 [100, 100]
+    const shortTmap: TmapClient = { ...tmapFor(index), route: async (o, d, v = []) => ({ ...(await tmapFor(nearEnd).route(o, d, v)), distanceM: 100_000 }) };
+    const nearEnd = new StationIndex([station('NEAR_END', 98, -0.002)]);
+    const r = await recommend(
+      { ...req, vehicle: { ...req.vehicle, currentSocPct: 100, arriveSocPct: 80, chargeCapSocPct: 80 } },
+      { tmap: shortTmap, index: nearEnd, status },
+    );
+    expect(r.warnings).toContain('CHARGE_CAP_RAISED');
+    expect(r.recommended?.station.id).toBe('NEAR_END');
+    expect(r.recommended!.socPlan.arriveAtDestinationPct).toBeCloseTo(80, 0);
+  });
+
   it('100% 로도 1회 충전이 불가능하면 경고', async () => {
     const r = await recommend({ ...req, vehicle: { ...req.vehicle, currentSocPct: 20 } }, { tmap, index, status });
     expect(r.warnings).toContain('MULTI_STOP_REQUIRED');

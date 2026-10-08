@@ -7,7 +7,8 @@
     "dev": "node --disable-warning=ExperimentalWarning --watch --import tsx src/main.ts",
     "start": "node --disable-warning=ExperimentalWarning --import tsx src/main.ts",
     "sync":"node --disable-warning=ExperimentalWarning --import tsx src/sync/run.ts",
-    "inspect": "node --disable-warning=ExperimentalWarning --import tsx src/sync/inspect.ts",
+    "explain": "node --disable-warning=ExperimentalWarning --import tsx src/sync/explain.ts",
+    "inspect":"node --disable-warning=ExperimentalWarning --import tsx src/sync/inspect.ts",
     "typecheck": "tsc -p ."
   },
   "dependencies": {
