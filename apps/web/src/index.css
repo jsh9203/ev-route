@@ -6,6 +6,15 @@ body,
   height: 100%;
 }
 
+/* 줌 애니메이션 중 경로선(canvas) 숨김 — MapView 참고. SDK 가 visibility 를 직접 바꾸므로 opacity 로 처리 */
+#tmap-container canvas {
+  transition: opacity 0.15s ease-out; /* 다시 나타날 때만 부드럽게 */
+}
+#tmap-container.vectors-hidden canvas {
+  opacity: 0 !important;
+  transition: none; /* 숨길 때는 즉시 */
+}
+
 body {
   margin: 0;
   font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;

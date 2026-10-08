@@ -87,12 +87,12 @@ export interface EvalContext {
   forceCharge: boolean;
 }
 
-/** 충전소 하나의 계획·비용. 이용 불가(전부 고장, 만차 제외 설정)면 null */
-export function evaluate(c: Candidate, detour: { detourS: number; detourKm: number }, status: StatusInput, ctx: EvalContext): Evaluation | null {
-  const byId = new Map(status.statuses?.map((s) => [s.chargerId, s]) ?? []);
+/** 충전기 목록의 실시간 상태 집계. 상태가 없으면 unknown */
+export function countStatuses(chargers: readonly ChargerRow[], statuses: readonly ChargerStatus[] | undefined) {
+  const byId = new Map(statuses?.map((s) => [s.chargerId, s]) ?? []);
   let available = 0, busy = 0, unknown = 0, offline = 0;
   let latestChangeAt: string | null = null;
-  for (const ch of c.eligible) {
+  for (const ch of chargers) {
     const st = byId.get(ch.chargerId);
     const cat = st ? statusCategory(st.stat) : 'unknown';
     if (cat === 'available') available++;
@@ -101,6 +101,12 @@ export function evaluate(c: Candidate, detour: { detourS: number; detourKm: numb
     else unknown++;
     if (st?.changedAt && (!latestChangeAt || st.changedAt > latestChangeAt)) latestChangeAt = st.changedAt;
   }
+  return { available, busy, unknown, offline, latestChangeAt };
+}
+
+/** 충전소 하나의 계획·비용. 이용 불가(전부 고장, 만차 제외 설정)면 null */
+export function evaluate(c: Candidate, detour: { detourS: number; detourKm: number }, status: StatusInput, ctx: EvalContext): Evaluation | null {
+  const { available, busy, unknown, offline, latestChangeAt } = countStatuses(c.eligible, status.statuses);
   if (offline === c.eligible.length) return null;
   const allBusy = available === 0 && unknown === 0;
   if (allBusy && !ctx.allowFullStations) return null;

@@ -1,4 +1,6 @@
-import type { LngLat, Recommendation, RecommendWarning } from '@ev-route/shared';
+import type { LngLat, Recommendation, RecommendWarning, StationListItem } from '@ev-route/shared';
+
+export const formatDistance = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`);
 
 export function formatDuration(seconds: number): string {
   const totalMin = Math.round(seconds / 60);
@@ -30,6 +32,15 @@ export type Availability = 'good' | 'few' | 'none' | 'unknown';
 export function availabilityOf(r: Recommendation): Availability {
   const c = r.station.chargers;
   if (r.station.status.source !== 'realtime') return 'unknown';
+  if (c.available >= 2) return 'good';
+  if (c.available === 1) return 'few';
+  return c.busy > 0 ? 'none' : 'unknown';
+}
+
+/** 충전소 찾기 결과의 가용성 (호환 충전기 기준) */
+export function listAvailability(s: StationListItem): Availability {
+  const c = s.chargers;
+  if (s.status.source !== 'realtime' || c.eligible === 0) return 'unknown';
   if (c.available >= 2) return 'good';
   if (c.available === 1) return 'few';
   return c.busy > 0 ? 'none' : 'unknown';

@@ -94,6 +94,31 @@ export interface RecommendResponse {
   warnings: RecommendWarning[];
 }
 
+/** 충전소 이름 검색 / 주변 찾기 결과 */
+export interface StationListItem {
+  id: string;
+  name: string;
+  address: string | null;
+  lng: number;
+  lat: number;
+  operatorId: string | null;
+  operator: string | null;
+  isRestArea: boolean;
+  useTime: string | null;
+  /** 기준점에서 직선거리 (주변 찾기일 때만) */
+  distanceM: number | null;
+  chargers: {
+    /** 선택한 차량 커넥터 호환 + 최소 출력 이상 + 이용제한 없음 */
+    eligible: number;
+    total: number;
+    maxOutputKw: number;
+    available: number;
+    busy: number;
+    unknown: number;
+  };
+  status: { source: StatusSource };
+}
+
 export interface PlaceResult {
   name: string;
   address: string | null;

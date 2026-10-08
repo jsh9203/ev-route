@@ -1,4 +1,11 @@
-import type { ApiError, PlaceResult, RecommendRequestInput, RecommendResponse, VehiclePreset } from '@ev-route/shared';
+import type { ApiError, PlaceResult, RecommendRequestInput, RecommendResponse, StationListItem, VehiclePreset } from '@ev-route/shared';
+
+export interface StationListOptions {
+  presetId: string;
+  minOutputKw: number;
+  compatibleOnly: boolean;
+}
+const listParams = (o: StationListOptions) => ({ presetId: o.presetId, minOutputKw: String(o.minOutputKw), compatibleOnly: String(o.compatibleOnly) });
 
 export class ApiRequestError extends Error {
   constructor(readonly code: ApiError['code'] | 'NETWORK', message: string) {
@@ -25,6 +32,10 @@ export const api = {
   config: () => request<{ tmapWebAppKey: string }>('/api/v1/config'),
   presets: () => request<VehiclePreset[]>('/api/v1/vehicles/presets'),
   searchPlaces: (q: string) => request<PlaceResult[]>(`/api/v1/places/search?q=${encodeURIComponent(q)}`),
+  searchStations: (q: string, o: StationListOptions) =>
+    request<StationListItem[]>(`/api/v1/stations/search?${new URLSearchParams({ q, ...listParams(o) })}`),
+  nearbyStations: (lng: number, lat: number, radiusKm: number, o: StationListOptions) =>
+    request<StationListItem[]>(`/api/v1/stations/nearby?${new URLSearchParams({ lng: String(lng), lat: String(lat), radiusKm: String(radiusKm), ...listParams(o) })}`),
   recommend: (body: RecommendRequestInput) =>
     request<RecommendResponse>('/api/v1/routes/recommend', {
       method: 'POST',

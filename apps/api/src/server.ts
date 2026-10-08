@@ -1,8 +1,9 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { RecommendRequestSchema, VEHICLE_PRESETS, type ApiError } from '@ev-route/shared';
+import { findPreset, RecommendRequestSchema, VEHICLE_PRESETS, type ApiError } from '@ev-route/shared';
 import { BadRequestError, recommend, type EngineDeps } from './recommend/engine';
 import { eligibleChargers } from './recommend/evaluate';
+import { searchByName, searchNearby, toListItems } from './stations/stationSearch';
 import { UpstreamError } from './tmap/client';
 
 export function buildServer(deps: EngineDeps & { tmapWebAppKey: string }): FastifyInstance {
@@ -27,6 +28,36 @@ export function buildServer(deps: EngineDeps & { tmapWebAppKey: string }): Fasti
   app.get('/api/v1/places/search', async (req) => {
     const { q } = z.object({ q: z.string().trim().min(1).max(100) }).parse(req.query);
     return deps.tmap.searchPlaces(q);
+  });
+
+  const listQuery = z.object({
+    presetId: z.string().default(VEHICLE_PRESETS[0]!.id),
+    minOutputKw: z.coerce.number().min(0).default(50),
+    compatibleOnly: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+    limit: z.coerce.number().int().min(1).max(50).default(30),
+  });
+  const listOptions = (q: z.infer<typeof listQuery>) => {
+    const preset = findPreset(q.presetId);
+    if (!preset) throw new BadRequestError(`알 수 없는 차량 프리셋: ${q.presetId}`);
+    return { preset, minOutputKw: q.minOutputKw, compatibleOnly: q.compatibleOnly, limit: q.limit };
+  };
+
+  // 충전소 이름·주소 검색
+  app.get('/api/v1/stations/search', async (req) => {
+    const q = listQuery.extend({ q: z.string().trim().min(2).max(50) }).parse(req.query);
+    const opts = listOptions(q);
+    const rows = searchByName(deps.index, q.q, opts).map((station) => ({ station, distM: null }));
+    return toListItems(rows, opts, deps.status);
+  });
+
+  // 좌표 주변 충전소 (가까운 순)
+  app.get('/api/v1/stations/nearby', async (req) => {
+    const q = listQuery
+      .extend({ lng: z.coerce.number().min(124).max(132), lat: z.coerce.number().min(33).max(39), radiusKm: z.coerce.number().min(0.2).max(20).default(3) })
+      .parse(req.query);
+    const opts = listOptions(q);
+    const rows = searchNearby(deps.index, q.lng, q.lat, q.radiusKm * 1000, opts).map((r) => ({ station: r.station, distM: r.distM }));
+    return toListItems(rows, opts, deps.status);
   });
 
   app.get('/api/v1/stations/:id', async (req, reply) => {

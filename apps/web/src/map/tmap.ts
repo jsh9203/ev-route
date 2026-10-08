@@ -12,8 +12,10 @@ export interface TLatLng {
 export interface TMap {
   setCenter(c: TLatLng): void;
   setZoom(z: number): void;
+  getZoom(): number;
   fitBounds(b: TLatLngBounds, margin?: number | { left: number; top: number; right: number; bottom: number }): void;
   addListener(event: 'click', fn: (e: { latLng: TLatLng }) => void): void;
+  addListener(event: 'zoom_changed', fn: () => void): void;
   destroy?(): void;
 }
 export interface TLatLngBounds {
