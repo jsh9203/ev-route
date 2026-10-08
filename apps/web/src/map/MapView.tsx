@@ -22,10 +22,14 @@ interface Props {
   onSelectStation: (id: string) => void;
   /** 지도 클릭 위치 (출발/도착 선택 모드일 때만 의미 있음) */
   onMapClick: (p: LngLat) => void;
+  /** 지도 아래를 가리는 패널 높이(px). 화면 맞춤·이동 때 그만큼 위로 올려 보여준다 */
+  bottomInset: number;
+  /** 모바일: 범례를 위쪽에 작게 */
+  compact: boolean;
 }
 
 export function MapView(props: Props) {
-  const { mode, origin, destination, result, selectedRank, stations, selectedStationId } = props;
+  const { mode, origin, destination, result, selectedRank, stations, selectedStationId, compact } = props;
   const containerId = 'tmap-container';
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<TMap | null>(null);
@@ -56,6 +60,7 @@ export function MapView(props: Props) {
         map.addListener('click', (e) => cb.current.onMapClick([e.latLng.lng(), e.latLng.lat()]));
         map.addListener('zoom_changed', () => hideVectorsWhileZooming());
         mapRef.current = map;
+        if (import.meta.env.DEV) (window as unknown as { __evMap: TMap }).__evMap = map; // 개발 중 디버깅용
         setReady(true);
       })
       .catch((e: Error) => !cancelled && setError(e.message));
@@ -142,28 +147,40 @@ export function MapView(props: Props) {
       mode === 'route' ? result?.baseRoute.polyline ?? [] : stations.map((s) => [s.lng, s.lat] as LngLat);
     if (points.length === 0) return;
     if (points.length === 1) {
-      map.setCenter(new T.LatLng(points[0]![1], points[0]![0]));
-      map.setZoom(15);
+      focusAboveInset(T, map, points[0]![1], points[0]![0], 15);
       return;
     }
     const bounds = new T.LatLngBounds();
     for (const [lng, lat] of points) bounds.extend(new T.LatLng(lat, lng));
-    map.fitBounds(bounds, 60);
-  }, [ready, mode, result, stations]);
+    const m = compact ? 30 : 60;
+    map.fitBounds(bounds, { left: m, right: m, top: m + (compact ? 20 : 0), bottom: m + cb.current.bottomInset });
+  }, [ready, mode, result, stations]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * 좌표를 "가려지지 않은 영역"(아래 패널 위쪽)의 가운데에 오게 이동하고 minZoom 까지 확대.
+   * - TMAP 은 setZoom 직후의 setCenter 를 무시하므로 반드시 setCenter → setZoom 순서
+   * - 패널 높이 절반만큼 중심을 아래로: 목표 줌의 m/px(웹 메르카토르)로 환산
+   */
+  const focusAboveInset = (T: Tmapv2Namespace, map: TMap, lat: number, lng: number, minZoom: number) => {
+    const zoom = Math.max(map.getZoom(), minZoom);
+    const mPerPx = (156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+    const dLat = ((cb.current.bottomInset / 2) * mPerPx) / 111_320;
+    map.setCenter(new T.LatLng(lat - dLat, lng));
+    if (zoom !== map.getZoom()) map.setZoom(zoom);
+  };
 
   // 목록에서 충전소를 고르면 그 위치로 이동
   useEffect(() => {
     const T = sdkRef.current, map = mapRef.current;
     const s = stations.find((x) => x.id === selectedStationId);
     if (!ready || !T || !map || !s) return;
-    map.setCenter(new T.LatLng(s.lat, s.lng));
-    if (map.getZoom() < 15) map.setZoom(15);
+    focusAboveInset(T, map, s.lat, s.lng, 15);
   }, [ready, selectedStationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="relative h-full w-full">
       <div id={containerId} ref={containerRef} className="h-full w-full" />
-      {ready && ((mode === 'route' && result?.recommended) || (mode === 'stations' && stations.length > 0)) && <Legend />}
+      {ready && ((mode === 'route' && result?.recommended) || (mode === 'stations' && stations.length > 0)) && <Legend compact={compact} />}
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-sm text-slate-500">
           {error ?? config.error?.message ?? '지도를 불러오는 중…'}
@@ -181,9 +198,21 @@ const LEGEND: [string, string][] = [
   [SUPERCHARGER_COLOR, '테슬라 슈퍼차저'],
 ];
 
-function Legend() {
+function Legend({ compact }: { compact: boolean }) {
+  const [open, setOpen] = useState(false);
+  // 모바일은 아래가 바텀 시트로 가려지고 화면이 좁아서, 왼쪽 위 버튼을 눌렀을 때만 펼친다
+  if (compact && !open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="absolute top-2 left-2 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-600 shadow">
+        범례
+      </button>
+    );
+  }
   return (
-    <div className="pointer-events-none absolute bottom-8 left-3 rounded-lg bg-white/95 px-3 py-2 text-[11px] text-slate-600 shadow">
+    <div
+      onClick={() => setOpen(false)}
+      className={`absolute rounded-lg bg-white/95 text-slate-600 shadow ${compact ? 'top-2 left-2 px-2.5 py-1.5 text-[11px]' : 'pointer-events-none bottom-8 left-3 px-3 py-2 text-[11px]'}`}
+    >
       {LEGEND.map(([color, label]) => (
         <div key={label} className="flex items-center gap-1.5 py-0.5">
           <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} />
