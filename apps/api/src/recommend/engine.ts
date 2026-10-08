@@ -2,8 +2,9 @@
 import {
   findPreset, SCORING,
   type LngLat, type RecommendRequest, type RecommendResponse, type RecommendWarning, type Recommendation, type RouteSummary, type StatusSource,
-  type TripBattery,
+  type ChargingFee, type TripBattery, type VehiclePreset,
 } from '@ev-route/shared';
+import type { PriceBook } from '../pricing/priceBook';
 import { chargeWindow, socUsedPct, type BatteryInput } from '../battery/battery';
 import { haversineM } from '../geo';
 import { RouteLine } from '../route/routeLine';
@@ -18,6 +19,8 @@ export interface EngineDeps {
   tmap: TmapClient;
   index: StationIndex;
   status: StatusService;
+  /** 없으면 요금 추정을 하지 않는다 */
+  prices?: PriceBook;
 }
 
 const toSummary = (r: TmapRoute): RouteSummary => ({ distanceM: r.distanceM, durationS: r.durationS, polyline: r.coords });
@@ -116,9 +119,10 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
     }),
   );
   const refined = precise.filter((x): x is { e: Evaluation; route: RouteSummary } => x !== null);
+  const feeOf = (e: Evaluation) => chargingFee(e, preset, deps.prices);
   const results = refined.length > 0
-    ? refined.map((x) => toRecommendation(x.e, x.route, true))
-    : topN.map((e) => toRecommendation(e, null, false));
+    ? refined.map((x) => toRecommendation(x.e, x.route, true, feeOf(x.e)))
+    : topN.map((e) => toRecommendation(e, null, false, feeOf(e)));
   const ranked = orderResults(results, prefs.preferSupercharger).map((r, i) => ({ ...r, rank: i + 1 }));
 
   return {
@@ -163,9 +167,19 @@ export function orderResults(list: readonly Recommendation[], preferSupercharger
   return [...others.slice(0, SCORING.preciseN - 1), sc];
 }
 
-function toRecommendation(e: Evaluation, route: RouteSummary | null, precise: boolean): Recommendation {
+/** 충전량 × 운영사 단가. 단가표가 없으면 null */
+export function chargingFee(e: Evaluation, preset: VehiclePreset, prices: PriceBook | undefined): ChargingFee | null {
+  const quote = prices?.quote(e.candidate.station.operatorId);
+  if (!quote) return null;
+  const batteryKwh = (Math.max(0, e.socPlan.chargeToPct - e.socPlan.arriveAtStationPct) / 100) * preset.batteryKwh;
+  const energyKwh = Math.round(batteryKwh * SCORING.billedEnergyFactor * 10) / 10;
+  return { energyKwh, wonPerKwh: quote.wonPerKwh, won: Math.round((energyKwh * quote.wonPerKwh) / 100) * 100, source: quote.source };
+}
+
+function toRecommendation(e: Evaluation, route: RouteSummary | null, precise: boolean, fee: ChargingFee | null): Recommendation {
   return {
     rank: 0,
+    fee,
     station: e.summary,
     socPlan: e.socPlan,
     detourDurationS: e.detourS,

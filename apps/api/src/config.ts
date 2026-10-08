@@ -17,6 +17,7 @@ export const config = {
   get dataGoKrServiceKey() { return required('DATA_GO_KR_SERVICE_KEY'); },
   port: Number(process.env.PORT ?? 3001),
   dbPath: path.resolve(ROOT_DIR, process.env.DB_PATH ?? './data/stations.sqlite'),
+  pricesPath: path.resolve(ROOT_DIR, process.env.PRICES_PATH ?? './data/prices.json'),
   statusCacheTtlSec: Number(process.env.STATUS_CACHE_TTL_SEC ?? 120),
   stationSyncIntervalHours: Number(process.env.STATION_SYNC_INTERVAL_HOURS ?? 24),
 };

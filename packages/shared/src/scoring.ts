@@ -24,6 +24,8 @@ export const SCORING = {
 
   /** 충전기 공칭 출력 대비 실제 전달 효율 */
   chargerEfficiency: 0.95,
+  /** 과금 전력량 = 배터리에 들어간 양 × 이 값 (충전 손실 추정) */
+  billedEnergyFactor: 1.05,
   /** 근사 비용 상위 K개만 실시간 상태 조회, 그중 상위 N개만 TMAP 정밀 경로 */
   candidateK: 15,
   preciseN: 3,

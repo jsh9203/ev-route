@@ -115,6 +115,18 @@ function RecommendationCard({ r, note, selected, onClick }: { r: Recommendation;
 
       <SocBar plan={r.socPlan} />
 
+      {r.fee && (
+        <div className="mt-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs">
+          <div className="flex items-baseline justify-between">
+            <span className="text-slate-500">예상 충전 비용</span>
+            <b className="text-sm text-slate-900">약 {r.fee.won.toLocaleString()}원</b>
+          </div>
+          <div className="mt-0.5 text-right text-[11px] text-slate-400">
+            약 {r.fee.energyKwh}kWh × {r.fee.source === 'operator' ? `${r.fee.wonPerKwh}원/kWh` : `기본 단가 ${r.fee.wonPerKwh}원/kWh (추정)`}
+          </div>
+        </div>
+      )}
+
       <div className="mt-2 flex items-center justify-between text-xs">
         <span style={{ color }} className="font-medium">
           {s.status.source === 'realtime'

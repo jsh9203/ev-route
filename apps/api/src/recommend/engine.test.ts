@@ -4,6 +4,7 @@ import type { StationWithChargers } from '../db/stationStore';
 import { StationIndex } from '../stations/stationIndex';
 import type { StatusService } from '../status/statusService';
 import type { TmapClient, TmapRoute } from '../tmap/client';
+import { parsePriceBook } from '../pricing/priceBook';
 import { recommend } from './engine';
 
 // 위도 37도를 따라 동쪽으로 약 400km 직선 고속도로 (경도 1도 ≈ 88.9km)
@@ -76,6 +77,23 @@ describe('recommend', () => {
     expect(r.warnings).toContain('PRESET_PROVISIONAL');
     // LR 프리셋: 100% 375km → 400km 는 106.7%p, 60% 출발이면 46.7% 부족
     expect(r.battery).toEqual({ tripUsePct: 106.7, arriveWithoutChargePct: -46.7, fullRangeKm: 375 });
+  });
+
+  it('단가표가 있으면 충전량 × 단가로 예상 비용을 붙인다', async () => {
+    const prices = parsePriceBook({ defaultWonPerKwh: 300, operators: { ME: { wonPerKwh: 400 } } });
+    const r = await recommend(req, { tmap, index, status, prices });
+    const fee = r.recommended!.fee!;
+    const { arriveAtStationPct, chargeToPct } = r.recommended!.socPlan;
+    expect(fee.source).toBe('operator');
+    expect(fee.wonPerKwh).toBe(400);
+    // LR 75kWh, 손실 보정 1.05
+    expect(fee.energyKwh).toBeCloseTo(((chargeToPct - arriveAtStationPct) / 100) * 75 * 1.05, 0);
+    expect(fee.won).toBe(Math.round((fee.energyKwh * 400) / 100) * 100);
+  });
+
+  it('단가표가 없으면 비용은 null', async () => {
+    const r = await recommend(req, { tmap, index, status });
+    expect(r.recommended!.fee).toBeNull();
   });
 
   it('충전이 필요 없으면 추천 없이 기본 경로만', async () => {

@@ -1,0 +1,20 @@
+{
+  "_설명": "충전 요금 단가표 (원/kWh, 회원가 기준). operators 의 키는 환경공단 기관 아이디(busiId), 슈퍼차저는 TE. 값이 null 이면 defaultWonPerKwh 로 추정. 서버 재시작 없이 저장하면 다음 요청부터 반영됨.",
+  "updatedAt": "2026-10-08",
+  "defaultWonPerKwh": 358,
+  "_defaultWonPerKwh_출처": "한국소비자원 조사 급속 회원가 평균 358.1원 (조사 시점 미확인, 임시값)",
+  "operators": {
+    "TE": { "name": "테슬라 슈퍼차저", "wonPerKwh": null },
+    "ME": { "name": "기후에너지환경부", "wonPerKwh": null },
+    "KP": { "name": "한국전력공사", "wonPerKwh": null },
+    "ST": { "name": "SK일렉링크", "wonPerKwh": null },
+    "SG": { "name": "SK시그넷", "wonPerKwh": null },
+    "CV": { "name": "채비", "wonPerKwh": null },
+    "EV": { "name": "에버온", "wonPerKwh": null },
+    "PI": { "name": "GS차지비", "wonPerKwh": null },
+    "LU": { "name": "LG유플러스 볼트업", "wonPerKwh": null },
+    "HE": { "name": "한국전기차충전서비스", "wonPerKwh": null },
+    "EP": { "name": "이카플러그", "wonPerKwh": null },
+    "BE": { "name": "브라이트에너지파트너스", "wonPerKwh": null }
+  }
+}

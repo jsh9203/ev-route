@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { config } from './config';
 import { openDb } from './db/db';
 import { loadPublicStations } from './db/stationStore';
+import { createFilePriceBook } from './pricing/priceBook';
 import { buildServer } from './server';
 import { StationIndex } from './stations/stationIndex';
 import { createStatusService } from './status/statusService';
@@ -20,6 +21,7 @@ const app = buildServer({
   tmap: createTmapClient(config.tmapAppKey),
   index,
   status: createStatusService(config.dataGoKrServiceKey, config.statusCacheTtlSec),
+  prices: createFilePriceBook(config.pricesPath),
   tmapWebAppKey: process.env.TMAP_WEB_APP_KEY || config.tmapAppKey,
 });
 app.log.info(`충전소 ${index.size.toLocaleString()}곳 적재`);

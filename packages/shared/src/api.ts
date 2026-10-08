@@ -39,8 +39,19 @@ export interface CostBreakdown {
   preference: number;
 }
 
+export interface ChargingFee {
+  /** 충전기에서 과금되는 전력량 추정 (배터리 충전량 × 손실 보정) */
+  energyKwh: number;
+  wonPerKwh: number;
+  won: number;
+  /** operator: 단가표에 해당 운영사 단가 있음 / default: 기본 단가로 추정 */
+  source: 'operator' | 'default';
+}
+
 export interface Recommendation {
   rank: number;
+  /** 단가표가 없으면 null */
+  fee: ChargingFee | null;
   station: StationSummary;
   socPlan: { arriveAtStationPct: number; chargeToPct: number; arriveAtDestinationPct: number };
   detourDurationS: number;
