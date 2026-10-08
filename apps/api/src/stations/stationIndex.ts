@@ -7,12 +7,18 @@ const M_PER_DEG_LAT = 111_320;
 /** 충전소 좌표 R-tree. 기동 시 한 번 만들고 읽기 전용으로 쓴다 */
 export class StationIndex {
   private readonly tree: Flatbush;
+  private readonly byId: Map<string, StationWithChargers>;
 
   constructor(readonly stations: readonly StationWithChargers[]) {
+    this.byId = new Map(stations.map((s) => [s.id, s]));
     this.tree = new Flatbush(Math.max(stations.length, 1));
     for (const s of stations) this.tree.add(s.lng, s.lat, s.lng, s.lat);
     if (stations.length === 0) this.tree.add(0, 0, 0, 0); // flatbush 는 빈 인덱스를 허용하지 않음
     this.tree.finish();
+  }
+
+  get(id: string): StationWithChargers | undefined {
+    return this.byId.get(id);
   }
 
   get size(): number {

@@ -103,7 +103,7 @@ EVRoute/
 | TMAP POI | ✅ 강남역 검색 정상. `frontLat/Lon`(진입 좌표)·`noorLat/Lon`(중심 좌표) 제공 → 경로 탐색에는 진입 좌표 사용 |
 | 환경공단 API | ✅ 키 반영 후 정상. 전국 **526,197 충전기 / 100,975 충전소** (출력 50kW 이상 보유 충전소 24,198). 9,999건/페이지 53회, **전체 덤프 약 41초** → 일 1회 동기화 충분 |
 | 🔴 슈퍼차저 포함 여부 | ❌ 명세서 기관코드표에 **`TE`(테슬라)는 정의돼 있으나 실제 데이터는 0건** (이름 검색도 0건). → **슈퍼차저는 보완 데이터로 반드시 별도 확보**, 실시간 상태는 "알 수 없음". 동기화 시 `TE` 행이 생기면 자동으로 원본 데이터 우선 |
-| 🔴 상태 조회 방식 | ✅ `getChargerStatus`·`getChargerInfo` 모두 **`statId` 단위 조회 지원** → **방식 A 채택**. `period`(최근 N분 변경분)도 동작(5분 7,863건) → 필요 시 방식 B 전환 가능 |
+| 🔴 상태 조회 방식 | ✅ **`getChargerInfo`를 `statId`로 조회 → 방식 A**. ⚠️ Phase 2에서 정정: `getChargerStatus`는 `statId`를 줘도 **최근 period(최대 10)분 안에 상태가 바뀐 충전기만** 반환 → 현재 상태 조회에 부적합 (상태 변화 없는 충전소는 빈 목록). `getChargerInfo`는 모든 충전기의 현재 `stat` 반환, 응답 약 60ms. `getChargerStatus`는 방식 B(변경분 동기화)에만 사용 가능 |
 | 🔴 커넥터 매핑 | ✅ 공식 코드표 확인 (`references/` 활용가이드 v1.25). 50kW 이상 분포: 04 DC콤보(41,380) · 06 차데모+AC3상+DC콤보(6,380) · **11 DC콤보2(버스전용, 5,581 → 반드시 제외)** · 05 차데모+DC콤보(1,467) · **10 DC콤보+NACS(266, SK일렉링크·채비·브라이트에너지파트너스, 200/350kW)** · 09 NACS 단독 0건. Model Y 호환 코드는 차량 충전구 규격 확정 후 결정 (§7 매핑표) |
 | Model Y 커넥터 | ✅ 차량 NACS + DC콤보 컨버터 보유 → **`CCS1`, `NACS` 모두 호환**. 사용 가능 타입: 04·05·06·09·10 (+ 슈퍼차저). 11(버스전용)·08(DC콤보 완속)은 제외 |
 | 슈퍼차저 데이터 | ✅ **supercharge.info `allSites`** (커뮤니티 운영 데이터, 전 세계 11,218곳). 한국 205곳 중 **OPEN 183곳·스톨 1,251개**. 출력 250kW 166곳 · 325kW 10곳 · 120kW 23곳. `plugs`(nacs/ccs1 수), `otherEVs`, `gps` 제공. **실시간 상태 없음**. 이름·주소는 영문(예: `Deokpyeong Rest Area(Gangneung)`) |
@@ -201,7 +201,7 @@ Cost = ΔT_detour + T_charge + w_eta × P_wait + P_reliability − B_preference
 | 항목 | 기본값 |
 |---|---|
 | P_wait | 가용 ≥2: 0 / 1: +5 / 0(사용중만): +20 (`allowFullStations=false`면 제외) / 알 수 없음: +5 |
-| P_reliability | 호환 고출력 충전기 총 1대: +5 / 상태 갱신 30분 초과: +3 |
+| P_reliability | 호환 고출력 충전기 총 1대: +5 (※ `statUpdDt`는 "상태가 바뀐 시각"이라 오래됐다고 데이터가 낡은 것이 아님 → 갱신 시각 기반 페널티는 폐기) |
 | B_preference | 선호 운영기관 일치: −3 |
 
 상수는 `packages/shared/scoring.ts` 한 곳에서 관리, 대표 시나리오(서울→부산, 서울→강릉 등) 스냅샷 테스트로 회귀 방지.
@@ -257,7 +257,8 @@ Cost = ΔT_detour + T_charge + w_eta × P_wait + P_reliability − B_preference
     "route": { "distanceM": 395800, "durationS": 16740, "polyline": ["..."] }
   },
   "alternatives": [ /* 동일 구조 */ ],
-  "warnings": []   // MULTI_STOP_REQUIRED | NO_CANDIDATE | STATUS_STALE | STATUS_UNAVAILABLE | SUPPLEMENT_DATA_USED
+  "warnings": []   // MULTI_STOP_REQUIRED | SOC_BELOW_RESERVE | NO_CANDIDATE | STATUS_UNAVAILABLE | PRESET_PROVISIONAL
+  // ※ 실제 구현 타입은 packages/shared/src/api.ts 가 기준
 }
 ```
 보조 엔드포인트
@@ -384,7 +385,7 @@ CREATE INDEX idx_chargers_station ON chargers(station_id);
 |---|---|---|
 | **0. 검증** | 키 발급, §3.3 체크리스트 (특히 🔴 3개) | 샘플 호출 3종 성공, 슈퍼차저 포함 여부·커넥터 매핑·상태 조회 방식 결론 문서화 |
 | **1. 기반·데이터** ✅ | 모노레포, shared 스키마·프리셋, 충전소 덤프 → SQLite, 커넥터 매핑, 휴게소·방향 추출, 슈퍼차저 동기화 | 전국 충전소 적재, bbox 질의·매핑 단위 테스트 — **완료 (2026-10-08)**: 충전소 100,693곳·충전기 523,487대 적재, 공개 충전소 56,968곳 메모리 적재 0.7초, Model Y 급속 가능 20,764곳, 테스트 20개 통과 |
-| **2. 추천 엔진** | TMAP 클라이언트, 배터리 모델·충전 곡선, 후보 추출, 우회 근사, 상태 결합(A/B), 비용함수, 정밀 재경로 | 대표 시나리오 테스트 통과, 근사 vs 실측 ΔT 오차 로그 |
+| **2. 추천 엔진** ✅ | TMAP 클라이언트, 배터리 모델·충전 곡선, 후보 추출, 우회 근사, 상태 결합, 비용함수, 정밀 재경로, Fastify API | 대표 시나리오 테스트 통과 — **완료 (2026-10-08)**: 테스트 40개 통과, 실제 API로 서울→부산·서울→강릉 추천 0.6~1.2초. 남은 일: 근사 vs 실측 ΔT 오차 로그(튜닝용) |
 | **3. 웹 UI** | 지도·검색·결과 패널·경로/구간/마커 렌더링 | 입력 → 추천 → 대안 전환 전체 동작 |
 | **4. 품질·배포** | 에러/빈 결과 처리, 로깅, 레이트리밋, Dockerfile·compose, README | 로컬 Docker 실행 성공, API 장애 시 degrade 확인 |
 | **5. 고도화** | **충전 정차 횟수 지정(다중 정차)**, 차량 직접 입력, 테슬라 Fleet API SoC 연동, 요금/멤버십, 모바일 | — |
@@ -400,7 +401,7 @@ CREATE INDEX idx_chargers_station ON chargers(station_id);
 | 비호환 충전기 추천 | 커넥터 하드 필터 + 매핑 단위 테스트 |
 | 근사 오차로 최적 후보 누락 | IC 페널티·휴게소 방향 반영, K 여유, 오차 로그로 튜닝 |
 | 휴게소 경유지가 반대 차로로 붙음 | Phase 0 실험, 필요 시 경유지 좌표를 진행방향 차로 쪽으로 보정 |
-| 실시간 상태 지연·부정확 | 도착 시점 감쇠, `updatedAt` 노출, STATUS_STALE 경고 |
+| 실시간 상태 지연·부정확 | 도착 시점 감쇠, 상태 출처(실시간/슈퍼차저 정적/조회 실패) 표시, 조회 실패 시 STATUS_UNAVAILABLE 경고 |
 | 상태 API가 충전소 단위 조회 불가 | 방식 B(백그라운드 변경분 동기화) |
 | TMAP 쿼터 초과 | 요청당 약 4회 제한, 단기 캐시, 레이트리밋 |
 | 충전 곡선 값 부정확 | 설정값으로 분리, 실제 충전 기록으로 보정 가능하게 |
