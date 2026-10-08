@@ -52,8 +52,8 @@ export function App() {
         <header className="flex items-center gap-2 bg-white px-4 pt-3">
           <img src="/logo.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0" />
           <div>
-            <h1 className="text-base font-bold leading-tight">EV Route</h1>
-            <p className="text-xs text-slate-500">가는 길에 가장 효율적인 충전소</p>
+            <h1 className="text-base font-bold leading-tight">붕찌의 맘마로드</h1>
+            <p className="text-xs text-slate-500">붕찌를 위한 가장 효율적인 충전소 찾기</p>
           </div>
         </header>
         <nav className="flex border-b border-slate-200 bg-white px-2">
