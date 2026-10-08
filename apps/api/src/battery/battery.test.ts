@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { VehiclePreset } from '@ev-route/shared';
+import { findPreset, type VehiclePreset } from '@ev-route/shared';
 import { chargeDurationS, chargeWindow, curveKw, planCharge, type BatteryInput } from './battery';
 
 // 100% 주행거리 375km
@@ -47,6 +47,12 @@ describe('charging', () => {
     const slow = chargeDurationS(preset, 10, 50, 50, 0.95);
     expect(slow).toBeGreaterThan(fast * 2);
     expect(chargeDurationS(preset, 10, 40, 250, 0.95)).toBeLessThan(chargeDurationS(preset, 40, 70, 250, 0.95));
+  });
+  it('Model Y RWD(2025) 프리셋: 슈퍼차저에서 10→80% 가 공개 자료(24분)와 비슷하다', () => {
+    const rwd = findPreset('tesla-model-y-rwd-2025')!;
+    const min = chargeDurationS(rwd, 10, 80, 250, 0.95) / 60;
+    expect(min).toBeGreaterThan(21);
+    expect(min).toBeLessThan(26);
   });
   it('50kW 충전기로 10→50% (30kWh) 는 약 38분', () => {
     expect(chargeDurationS(preset, 10, 50, 50, 0.95) / 60).toBeCloseTo(30 / 47.5 * 60, 0);

@@ -72,6 +72,8 @@ describe('recommend', () => {
     expect(r.recommended!.socPlan.arriveAtDestinationPct).toBeGreaterThanOrEqual(19.5);
     expect(r.recommended!.station.chargers.available).toBe(2);
     expect(r.warnings).toContain('PRESET_PROVISIONAL');
+    // LR 프리셋: 100% 375km → 400km 는 106.7%p, 60% 출발이면 46.7% 부족
+    expect(r.battery).toEqual({ tripUsePct: 106.7, arriveWithoutChargePct: -46.7, fullRangeKm: 375 });
   });
 
   it('충전이 필요 없으면 추천 없이 기본 경로만', async () => {
@@ -87,8 +89,18 @@ describe('recommend', () => {
     expect(r.warnings).toContain('STATUS_UNAVAILABLE');
   });
 
-  it('1회 충전으로 불가능하면 경고', async () => {
-    const r = await recommend({ ...req, vehicle: { ...req.vehicle, currentSocPct: 30 } }, { tmap, index, status });
+  it('80% 상한으로 부족하면 100% 까지 올려 계산하고 알린다', async () => {
+    // LR 375km: 50% 출발 → 최대 150km 지점, 80% 충전 시 최초 175km 지점 → 불가. 100% 면 100km 지점부터 가능
+    const atStation = (km: number) => station(`S${km}`, km, -0.002, { isRestArea: true });
+    const idx = new StationIndex([atStation(140)]);
+    const r = await recommend({ ...req, vehicle: { ...req.vehicle, currentSocPct: 50 } }, { tmap, index: idx, status });
+    expect(r.warnings).toContain('CHARGE_CAP_RAISED');
+    expect(r.chargeWindowKm).toEqual([100, 150]);
+    expect(r.recommended!.socPlan.chargeToPct).toBeGreaterThan(80);
+  });
+
+  it('100% 로도 1회 충전이 불가능하면 경고', async () => {
+    const r = await recommend({ ...req, vehicle: { ...req.vehicle, currentSocPct: 20 } }, { tmap, index, status });
     expect(r.warnings).toContain('MULTI_STOP_REQUIRED');
     expect(r.recommended).toBeNull();
   });

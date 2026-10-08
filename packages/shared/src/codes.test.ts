@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { connectorsOf, statusCategory } from './codes';
-import { findPreset } from './vehicles';
+import { findPreset, VEHICLE_PRESETS } from './vehicles';
 
 describe('connectorsOf', () => {
   it('복합 타입은 여러 커넥터로 펼친다', () => {
@@ -25,6 +25,10 @@ describe('statusCategory', () => {
 });
 
 describe('vehicle presets', () => {
+  it('기본 차량(첫 번째)은 Model Y RWD 2025', () => {
+    expect(VEHICLE_PRESETS[0]!.id).toBe('tesla-model-y-rwd-2025');
+  });
+
   it('Model Y 는 NACS·CCS1 호환, 충전 곡선은 SoC 오름차순', () => {
     const p = findPreset('tesla-model-y-lr')!;
     expect(p.compatibleConnectors).toEqual(['NACS', 'CCS1']);

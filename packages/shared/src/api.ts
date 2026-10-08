@@ -54,13 +54,25 @@ export interface Recommendation {
 
 export type RecommendWarning =
   | 'MULTI_STOP_REQUIRED'
+  /** 설정한 충전 상한으로는 1회 충전이 불가능해 100% 까지 충전하는 계획으로 계산함 */
+  | 'CHARGE_CAP_RAISED'
   | 'SOC_BELOW_RESERVE'
   | 'NO_CANDIDATE'
   | 'STATUS_UNAVAILABLE'
   | 'PRESET_PROVISIONAL';
 
+export interface TripBattery {
+  /** 기본 경로 전체를 달리는 데 쓰는 배터리 (%p, 100 초과 가능) */
+  tripUsePct: number;
+  /** 충전 없이 갔을 때 목적지 도착 배터리 (%, 음수면 부족) */
+  arriveWithoutChargePct: number;
+  /** 이 차량의 100% 기준 주행 가능 거리 (km) */
+  fullRangeKm: number;
+}
+
 export interface RecommendResponse {
   baseRoute: RouteSummary;
+  battery: TripBattery;
   chargeNeeded: boolean;
   /** 충전 가능 구간 (출발 후 km) */
   chargeWindowKm: [number, number] | null;

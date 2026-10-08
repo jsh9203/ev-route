@@ -18,7 +18,7 @@ export interface FormState {
 export const DEFAULT_FORM: FormState = {
   origin: null,
   destination: null,
-  presetId: 'tesla-model-y-lr',
+  presetId: 'tesla-model-y-rwd-2025',
   currentSocPct: 60,
   arriveSocPct: 20,
   reserveSocPct: 10,
@@ -36,7 +36,11 @@ const STORAGE_KEY = 'ev-route:form';
 export function loadForm(): FormState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULT_FORM, ...(JSON.parse(raw) as Partial<FormState>) } : DEFAULT_FORM;
+    if (!raw) return DEFAULT_FORM;
+    const saved = JSON.parse(raw) as Partial<FormState> & { presetVersion?: number };
+    // v2: 기본 차량을 Model Y RWD(2025~)로 변경 — 이전에 저장된 기본값(LR)은 한 번 바꿔준다
+    if (saved.presetVersion !== 2) saved.presetId = DEFAULT_FORM.presetId;
+    return { ...DEFAULT_FORM, ...saved };
   } catch {
     return DEFAULT_FORM;
   }
@@ -44,7 +48,7 @@ export function loadForm(): FormState {
 
 export function saveForm(f: FormState): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(f));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...f, presetVersion: 2 }));
   } catch {
     // 저장 실패는 무시
   }

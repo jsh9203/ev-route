@@ -2,8 +2,9 @@
 import {
   findPreset, SCORING,
   type LngLat, type RecommendRequest, type RecommendResponse, type RecommendWarning, type Recommendation, type RouteSummary, type StatusSource,
+  type TripBattery,
 } from '@ev-route/shared';
-import { chargeWindow, type BatteryInput } from '../battery/battery';
+import { chargeWindow, socUsedPct, type BatteryInput } from '../battery/battery';
 import { RouteLine } from '../route/routeLine';
 import type { StationIndex } from '../stations/stationIndex';
 import type { StatusService } from '../status/statusService';
@@ -32,10 +33,27 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
   const line = new RouteLine(base.coords, base.segmentRoadTypes);
   const totalKm = base.distanceM / 1000;
 
-  const battery: BatteryInput = { preset, ...req.vehicle };
-  const win = chargeWindow(battery, totalKm, prefs.forceCharge);
+  let battery: BatteryInput = { preset, ...req.vehicle };
+  let win = chargeWindow(battery, totalKm, prefs.forceCharge);
+  if (win.needed && !win.feasible && win.maxKm > 0 && battery.chargeCapSocPct < 100) {
+    // 충전 상한까지만으로는 한 번에 못 가면, 상한을 100% 로 올려 1회 충전이 가능한지 다시 본다 (80% 이상은 곡선상 느리게 계산됨)
+    const raised = { ...battery, chargeCapSocPct: 100 };
+    const w = chargeWindow(raised, totalKm, prefs.forceCharge);
+    if (w.feasible) {
+      battery = raised;
+      win = w;
+      warnings.push('CHARGE_CAP_RAISED');
+    }
+  }
+  const tripUsePct = socUsedPct(preset, totalKm);
+  const tripBattery: TripBattery = {
+    tripUsePct: round1(tripUsePct),
+    arriveWithoutChargePct: round1(req.vehicle.currentSocPct - tripUsePct),
+    fullRangeKm: Math.round(preset.batteryKwh * preset.efficiencyKmPerKwh),
+  };
   const empty = (chargeWindowKm: [number, number] | null, w: RecommendWarning[] = []): RecommendResponse => ({
-    baseRoute: toSummary(base), chargeNeeded: win.needed, chargeWindowKm, recommended: null, alternatives: [], warnings: [...warnings, ...w],
+    baseRoute: toSummary(base), battery: tripBattery, chargeNeeded: win.needed, chargeWindowKm,
+    recommended: null, alternatives: [], warnings: [...warnings, ...w],
   });
   if (!win.needed && !prefs.forceCharge) return empty(null);
   if (win.maxKm <= 0) return empty(null, ['SOC_BELOW_RESERVE']);
@@ -95,6 +113,7 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
 
   return {
     baseRoute: toSummary(base),
+    battery: tripBattery,
     chargeNeeded: win.needed,
     chargeWindowKm: windowKm,
     recommended: ranked[0] ?? null,
