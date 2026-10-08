@@ -50,7 +50,7 @@ export function App() {
     <div className="flex h-full">
       <aside className="flex w-[400px] shrink-0 flex-col border-r border-slate-200 bg-slate-50">
         <header className="flex items-center gap-2 bg-white px-4 pt-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white">⚡</span>
+          <img src="/logo.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0" />
           <div>
             <h1 className="text-base font-bold leading-tight">EV Route</h1>
             <p className="text-xs text-slate-500">가는 길에 가장 효율적인 충전소</p>
