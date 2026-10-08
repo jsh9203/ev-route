@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { PlaceResult, StationListItem } from '@ev-route/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { availabilityTextColor, formatDistance, listAvailability } from '../lib/format';
 
@@ -46,6 +46,13 @@ export function StationFinder({ presetId, origin, destination, selectedId, onSel
   });
   const stations = query.data ?? [];
   useEffect(() => onResults(query.data ?? []), [query.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 지도에서 핀을 눌러 선택이 바뀌면 목록도 그 카드로 스크롤
+  const listRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    listRef.current?.querySelector(`[data-station-id="${CSS.escape(selectedId)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [selectedId]);
 
   const nearBtn = (which: 'origin' | 'destination', place: PlaceResult | null, label: string) => {
     const active = search?.kind === 'near' && search.which === which;
@@ -122,9 +129,9 @@ export function StationFinder({ presetId, origin, destination, selectedId, onSel
         </p>
       )}
 
-      <ul className="space-y-2">
+      <ul ref={listRef} className="space-y-2">
         {stations.map((s) => (
-          <li key={s.id}>
+          <li key={s.id} data-station-id={s.id}>
             <StationCard s={s} selected={s.id === selectedId} onClick={() => onSelect(s.id)} />
           </li>
         ))}

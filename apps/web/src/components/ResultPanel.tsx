@@ -1,4 +1,5 @@
 import type { Recommendation, RecommendResponse } from '@ev-route/shared';
+import { useEffect, useRef } from 'react';
 import { AVAILABILITY_COLOR, availabilityOf, availabilityTextColor, clockAfter, formatDuration, formatKm, SUPERCHARGER_COLOR, WARNING_TEXT } from '../lib/format';
 
 interface Props {
@@ -13,8 +14,15 @@ export function ResultPanel({ result, selectedRank, onSelect }: Props) {
   // 정보성 경고(추정치)는 아래쪽에 작게
   const warnings = result.warnings.filter((w) => w !== 'PRESET_PROVISIONAL');
 
+  // 지도에서 순위 핀을 눌러 선택이 바뀌면 그 카드로 스크롤
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (selectedRank === null) return;
+    rootRef.current?.querySelector(`[data-rank="${selectedRank}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [selectedRank]);
+
   return (
-    <div className="space-y-3">
+    <div ref={rootRef} className="space-y-3">
       <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
         충전 없이 <b>{formatKm(base.distanceM)}</b> · <b>{formatDuration(base.durationS)}</b>
         <TripBatteryRow battery={result.battery} />
@@ -44,7 +52,11 @@ export function ResultPanel({ result, selectedRank, onSelect }: Props) {
         const note = r.rank === 1 && r.station.operatorId === 'TE' && slowerBy >= 1
           ? `가장 빠른 곳보다 약 ${slowerBy}분 더 걸리지만 슈퍼차저 우선 설정으로 1순위`
           : undefined;
-        return <RecommendationCard key={r.station.id} r={r} note={note} selected={r.rank === selectedRank} onClick={() => onSelect(r.rank)} />;
+        return (
+          <div key={r.station.id} data-rank={r.rank}>
+            <RecommendationCard r={r} note={note} selected={r.rank === selectedRank} onClick={() => onSelect(r.rank)} />
+          </div>
+        );
       })}
 
       {result.warnings.includes('PRESET_PROVISIONAL') && <p className="text-xs text-slate-400">※ {WARNING_TEXT.PRESET_PROVISIONAL}</p>}
