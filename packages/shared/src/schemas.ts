@@ -30,3 +30,5 @@ export const RecommendRequestSchema = z.object({
     .default({ minOutputKw: 100, preferredOperatorIds: [], bufferKm: 3, allowFullStations: false, forceCharge: false }),
 });
 export type RecommendRequest = z.infer<typeof RecommendRequestSchema>;
+/** 클라이언트가 보내는 형태 (기본값 있는 필드는 생략 가능) */
+export type RecommendRequestInput = z.input<typeof RecommendRequestSchema>;

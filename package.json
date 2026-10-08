@@ -7,6 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "dev": "pnpm --parallel -r dev",
     "sync:stations": "pnpm --filter @ev-route/api sync",
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck"

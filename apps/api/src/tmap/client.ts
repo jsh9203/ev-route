@@ -20,10 +20,13 @@ export interface TmapRoute {
 
 interface Feature {
   geometry: { type: 'Point' | 'LineString'; coordinates: unknown };
-  properties: { totalDistance?: number; totalTime?: number; roadType?: number };
+  properties: { totalDistance?: number; totalTime?: number; roadType?: number; lineIndex?: number; pointType?: string };
 }
 
-/** TMAP 경로 응답 → 하나의 polyline. LineString 끼리 맞닿는 중복 좌표는 제거 */
+/**
+ * TMAP 경로 응답 → 하나의 polyline. LineString 끼리 맞닿는 중복 좌표는 제거.
+ * 경유지가 있으면 도착점(pointType 'E') 뒤에 "경유지와 연결된 가상의 라인"(lineIndex 없음)이 붙으므로 제외한다.
+ */
 export function parseRouteResponse(json: { features?: Feature[] }): TmapRoute {
   const features = json.features;
   const first = features?.[0]?.properties;
@@ -33,7 +36,8 @@ export function parseRouteResponse(json: { features?: Feature[] }): TmapRoute {
   const coords: LngLat[] = [];
   const segmentRoadTypes: number[] = [];
   for (const f of features) {
-    if (f.geometry.type !== 'LineString') continue;
+    if (f.properties.pointType === 'E') break;
+    if (f.geometry.type !== 'LineString' || f.properties.lineIndex === undefined) continue;
     const roadType = f.properties.roadType ?? -1;
     for (const c of f.geometry.coordinates as LngLat[]) {
       const last = coords[coords.length - 1];
