@@ -10,7 +10,8 @@ export interface FormState {
   chargeCapSocPct: number;
   minOutputKw: number;
   bufferKm: number;
-  preferTesla: boolean;
+  preferSupercharger: boolean;
+  superchargerOnly: boolean;
   allowFullStations: boolean;
   forceCharge: boolean;
 }
@@ -25,7 +26,8 @@ export const DEFAULT_FORM: FormState = {
   chargeCapSocPct: 80,
   minOutputKw: 100,
   bufferKm: 3,
-  preferTesla: false,
+  preferSupercharger: false,
+  superchargerOnly: false,
   allowFullStations: false,
   forceCharge: false,
 };
@@ -67,10 +69,11 @@ export function toRequest(f: FormState): RecommendRequestInput {
     },
     preferences: {
       minOutputKw: f.minOutputKw,
-      preferredOperatorIds: f.preferTesla ? ['TE'] : [],
       bufferKm: f.bufferKm,
       allowFullStations: f.allowFullStations,
       forceCharge: f.forceCharge,
+      preferSupercharger: f.preferSupercharger,
+      superchargerOnly: f.superchargerOnly,
     },
   };
 }

@@ -17,6 +17,10 @@ export const SCORING = {
   /** 조건에 맞는 충전기가 1대뿐인 충전소 */
   singleChargerPenalty: 5,
   preferredOperatorBonus: 3,
+  /** 슈퍼차저 우선: 최적 충전소보다 이 시간(분) 이내로 더 걸리면 슈퍼차저를 1순위로 */
+  superchargerPreferToleranceMin: 15,
+  /** 같은 장소(휴게소 등)로 보고 하나만 남기는 거리(m) */
+  sameSiteRadiusM: 150,
 
   /** 충전기 공칭 출력 대비 실제 전달 효율 */
   chargerEfficiency: 0.95,

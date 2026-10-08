@@ -100,7 +100,13 @@ export function SearchForm({ form, setForm, presets, picking, setPicking, onSubm
           </label>
         </div>
         <div className="mt-3 space-y-1.5">
-          <Check label="테슬라 슈퍼차저 우선" checked={form.preferTesla} onChange={(v) => set('preferTesla', v)} />
+          <Check
+            label="테슬라 슈퍼차저 우선 (최적보다 15분 이내면 1순위)"
+            checked={form.preferSupercharger}
+            disabled={form.superchargerOnly}
+            onChange={(v) => set('preferSupercharger', v)}
+          />
+          <Check label="테슬라 슈퍼차저만 추천" checked={form.superchargerOnly} onChange={(v) => set('superchargerOnly', v)} />
           <Check label="빈 충전기가 없는 충전소도 포함" checked={form.allowFullStations} onChange={(v) => set('allowFullStations', v)} />
           <Check label="충전이 필요 없어도 충전소 추천" checked={form.forceCharge} onChange={(v) => set('forceCharge', v)} />
         </div>
@@ -131,10 +137,10 @@ function NumberField({ label, unit, value, onChange }: { label: string; unit: st
   );
 }
 
-function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Check({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-slate-700">
-      <input type="checkbox" className="accent-blue-600" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    <label className={`flex items-center gap-2 ${disabled ? 'cursor-not-allowed text-slate-400' : 'cursor-pointer text-slate-700'}`}>
+      <input type="checkbox" className="accent-blue-600" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       {label}
     </label>
   );

@@ -58,6 +58,8 @@ export type RecommendWarning =
   | 'CHARGE_CAP_RAISED'
   | 'SOC_BELOW_RESERVE'
   | 'NO_CANDIDATE'
+  /** 슈퍼차저 우선/전용인데 충전 가능 구간에 슈퍼차저가 없음 */
+  | 'NO_SUPERCHARGER'
   | 'STATUS_UNAVAILABLE'
   | 'PRESET_PROVISIONAL';
 

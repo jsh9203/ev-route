@@ -37,9 +37,15 @@ export function ResultPanel({ result, selectedRank, onSelect }: Props) {
         </div>
       )}
 
-      {recs.map((r) => (
-        <RecommendationCard key={r.station.id} r={r} selected={r.rank === selectedRank} onClick={() => onSelect(r.rank)} />
-      ))}
+      {recs.map((r) => {
+        // 슈퍼차저 우선 설정으로 더 느린 슈퍼차저가 1순위가 된 경우 차이를 알려준다
+        const fastest = Math.min(...recs.map((x) => x.cost.total));
+        const slowerBy = Math.round(r.cost.total - fastest);
+        const note = r.rank === 1 && r.station.operatorId === 'TE' && slowerBy >= 1
+          ? `가장 빠른 곳보다 약 ${slowerBy}분 더 걸리지만 슈퍼차저 우선 설정으로 1순위`
+          : undefined;
+        return <RecommendationCard key={r.station.id} r={r} note={note} selected={r.rank === selectedRank} onClick={() => onSelect(r.rank)} />;
+      })}
 
       {result.warnings.includes('PRESET_PROVISIONAL') && <p className="text-xs text-slate-400">※ {WARNING_TEXT.PRESET_PROVISIONAL}</p>}
     </div>
@@ -70,7 +76,7 @@ function TripBatteryRow({ battery }: { battery: RecommendResponse['battery'] }) 
   );
 }
 
-function RecommendationCard({ r, selected, onClick }: { r: Recommendation; selected: boolean; onClick: () => void }) {
+function RecommendationCard({ r, note, selected, onClick }: { r: Recommendation; note?: string; selected: boolean; onClick: () => void }) {
   const s = r.station;
   const c = s.chargers;
   const totalS = (r.route?.durationS ?? 0) + r.chargeDurationS;
@@ -90,6 +96,7 @@ function RecommendationCard({ r, selected, onClick }: { r: Recommendation; selec
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-semibold text-slate-900">{s.name}</span>
             {r.rank === 1 && <Badge className="bg-blue-600 text-white">추천</Badge>}
+            {s.operatorId === 'TE' && <Badge className="bg-red-600 text-white">슈퍼차저</Badge>}
             {s.isRestArea && <Badge className="bg-slate-100 text-slate-600">휴게소</Badge>}
           </div>
           <div className="mt-0.5 text-xs text-slate-500">{s.operator ?? '운영기관 미상'} · 최대 {c.maxOutputKw}kW</div>
@@ -118,6 +125,7 @@ function RecommendationCard({ r, selected, onClick }: { r: Recommendation; selec
         </span>
         {totalS > 0 && <span className="text-slate-500">총 {formatDuration(totalS)}</span>}
       </div>
+      {note && <div className="mt-1.5 rounded bg-red-50 px-2 py-1 text-[11px] text-red-700">{note}</div>}
       {!r.precise && <div className="mt-1 text-[11px] text-slate-400">경로 시간은 근사값입니다</div>}
     </button>
   );

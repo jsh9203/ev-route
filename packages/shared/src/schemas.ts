@@ -26,8 +26,15 @@ export const RecommendRequestSchema = z.object({
       bufferKm: z.number().min(0.5).max(10).default(3),
       allowFullStations: z.boolean().default(false),
       forceCharge: z.boolean().default(false),
+      /** 최적 대비 SCORING.superchargerPreferToleranceMin 이내면 슈퍼차저를 1순위로, 아니어도 대안에 포함 */
+      preferSupercharger: z.boolean().default(false),
+      /** 슈퍼차저 중에서만 추천 */
+      superchargerOnly: z.boolean().default(false),
     })
-    .default({ minOutputKw: 100, preferredOperatorIds: [], bufferKm: 3, allowFullStations: false, forceCharge: false }),
+    .default({
+      minOutputKw: 100, preferredOperatorIds: [], bufferKm: 3, allowFullStations: false, forceCharge: false,
+      preferSupercharger: false, superchargerOnly: false,
+    }),
 });
 export type RecommendRequest = z.infer<typeof RecommendRequestSchema>;
 /** 클라이언트가 보내는 형태 (기본값 있는 필드는 생략 가능) */

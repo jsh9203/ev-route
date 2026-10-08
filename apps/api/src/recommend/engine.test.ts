@@ -31,19 +31,21 @@ const index = new StationIndex([
 ]);
 
 const viaCalls: string[] = [];
-const tmap: TmapClient = {
+/** 경유 시 추가 시간: OFF_ROAD 15분, SC 10분, 그 외(휴게소) 1.5분 */
+const tmapFor = (idx: StationIndex): TmapClient => ({
   async route(_o, _d, vias = []) {
     if (vias.length === 0) return base;
     const v = vias[0]!;
-    const id = index.near(v[0], v[1], 10)[0]!.station.id;
+    const id = idx.near(v[0], v[1], 10)[0]!.station.id;
     viaCalls.push(id);
-    const extraS = id === 'OFF_ROAD' ? 900 : 90;
-    return { ...base, distanceM: base.distanceM + (id === 'OFF_ROAD' ? 2500 : 300), durationS: base.durationS + extraS };
+    const extraS = id === 'OFF_ROAD' ? 900 : id === 'SC' ? 600 : 90;
+    return { ...base, distanceM: base.distanceM + (extraS > 90 ? 2500 : 300), durationS: base.durationS + extraS };
   },
   async searchPlaces() {
     return [];
   },
-};
+});
+const tmap = tmapFor(index);
 const status: StatusService = {
   async get(ids) {
     return new Map(ids.map((id) => [id, [{ chargerId: '01', stat: '2', changedAt: null }, { chargerId: '02', stat: '2', changedAt: null }]]));
@@ -97,6 +99,39 @@ describe('recommend', () => {
     expect(r.warnings).toContain('CHARGE_CAP_RAISED');
     expect(r.chargeWindowKm).toEqual([100, 150]);
     expect(r.recommended!.socPlan.chargeToPct).toBeGreaterThan(80);
+  });
+
+  it('같은 휴게소의 다른 운영사 충전소는 하나만 남긴다', async () => {
+    const idx = new StationIndex([
+      station('REST_A', 182, -0.002, { isRestArea: true }),
+      station('REST_B', 182.05, -0.002, { isRestArea: true }), // 약 50m 옆
+      station('OTHER', 186, -0.002, { isRestArea: true }),
+    ]);
+    const r = await recommend(req, { tmap: tmapFor(idx), index: idx, status });
+    const ids = [r.recommended, ...r.alternatives].map((x) => x!.station.id);
+    expect(ids.filter((id) => id.startsWith('REST_'))).toHaveLength(1);
+    expect(ids).toContain('OTHER');
+  });
+
+  const sc = station('SC', 183, -0.01, { source: 'supercharger', operatorId: 'TE' }); // 고속도로 밖 1.1km
+  const scIndex = new StationIndex([station('REST_RIGHT', 182, -0.002, { isRestArea: true }), sc]);
+
+  it('슈퍼차저만: 일반 충전소는 빼고 슈퍼차저만 추천', async () => {
+    const r = await recommend({ ...req, preferences: { ...req.preferences, superchargerOnly: true } }, { tmap: tmapFor(scIndex), index: scIndex, status });
+    expect([r.recommended, ...r.alternatives].map((x) => x!.station.id)).toEqual(['SC']);
+  });
+
+  it('슈퍼차저만인데 구간에 없으면 NO_SUPERCHARGER', async () => {
+    const r = await recommend({ ...req, preferences: { ...req.preferences, superchargerOnly: true } }, { tmap, index, status });
+    expect(r.recommended).toBeNull();
+    expect(r.warnings).toContain('NO_SUPERCHARGER');
+  });
+
+  it('슈퍼차저 우선: 허용 시간 안이면 더 느려도 1순위', async () => {
+    const off = await recommend(req, { tmap: tmapFor(scIndex), index: scIndex, status });
+    expect(off.recommended!.station.id).toBe('REST_RIGHT');
+    const on = await recommend({ ...req, preferences: { ...req.preferences, preferSupercharger: true } }, { tmap: tmapFor(scIndex), index: scIndex, status });
+    expect(on.recommended!.station.id).toBe('SC');
   });
 
   it('100% 로도 1회 충전이 불가능하면 경고', async () => {

@@ -20,6 +20,7 @@ export const WARNING_TEXT: Record<RecommendWarning, string> = {
   CHARGE_CAP_RAISED: '설정한 충전 상한으로는 한 번 충전으로 갈 수 없어, 상한을 넘겨 최대 100%까지 충전하는 계획으로 계산했습니다. 80% 이상은 충전이 느려 시간이 더 걸립니다.',
   SOC_BELOW_RESERVE: '현재 배터리가 최소 여유 배터리보다 낮습니다. 출발지 근처에서 먼저 충전하세요.',
   NO_CANDIDATE: '충전 가능 구간에서 조건에 맞는 충전소를 찾지 못했습니다. 최소 출력을 낮추거나 탐색 반경을 넓혀 보세요.',
+  NO_SUPERCHARGER: '충전 가능 구간 근처에 테슬라 슈퍼차저가 없습니다.',
   STATUS_UNAVAILABLE: '충전기 실시간 상태를 불러오지 못해 가용 여부 없이 추천했습니다.',
   PRESET_PROVISIONAL: '차량 배터리·충전 곡선은 공개 자료 기반 추정치입니다.',
 };

@@ -5,6 +5,7 @@ import {
   type TripBattery,
 } from '@ev-route/shared';
 import { chargeWindow, socUsedPct, type BatteryInput } from '../battery/battery';
+import { haversineM } from '../geo';
 import { RouteLine } from '../route/routeLine';
 import type { StationIndex } from '../stations/stationIndex';
 import type { StatusService } from '../status/statusService';
@@ -61,10 +62,11 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
   const windowKm: [number, number] = [round1(win.minKm), round1(win.maxKm)];
 
   // 1차 후보 → 근사 우회 → 상위 K
+  const wantSupercharger = prefs.preferSupercharger || prefs.superchargerOnly;
   const candidates = findCandidates({
     index: deps.index, line, fromKm: win.minKm, toKm: win.maxKm,
     bufferM: prefs.bufferKm * 1000, preset, minOutputKw: prefs.minOutputKw,
-  });
+  }).filter((c) => !prefs.superchargerOnly || c.station.source === 'supercharger');
   const ctx: EvalContext = {
     battery, totalKm, baseDurationS: base.durationS,
     preferredOperatorIds: prefs.preferredOperatorIds, allowFullStations: prefs.allowFullStations, forceCharge: prefs.forceCharge,
@@ -75,7 +77,10 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
     return e ? [{ e, d: d! }] : [];
   });
   approx.sort((a, b) => a.e.cost.total - b.e.cost.total);
+  if (wantSupercharger && !approx.some((x) => isSupercharger(x.e))) warnings.push('NO_SUPERCHARGER');
   const topK = approx.slice(0, SCORING.candidateK);
+  // 슈퍼차저 우선이면 상위 K 밖의 슈퍼차저도 2곳까지 끌어와 비교 대상에 넣는다
+  if (prefs.preferSupercharger) topK.push(...approx.slice(SCORING.candidateK).filter((x) => isSupercharger(x.e)).slice(0, 2));
 
   // 실시간 상태 결합
   const evcsIds = topK.filter((x) => x.e.candidate.station.source === 'evcs').map((x) => x.e.candidate.station.id);
@@ -88,8 +93,13 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
     return r ? [r] : [];
   });
   withStatus.sort((a, b) => a.cost.total - b.cost.total);
-  const topN = withStatus.slice(0, SCORING.preciseN);
-  if (topN.length === 0) return empty(windowKm, ['NO_CANDIDATE']);
+  const distinct = dedupeSameSite(withStatus);
+  const topN = distinct.slice(0, SCORING.preciseN);
+  // 슈퍼차저 우선이면 근사 기준 상위 슈퍼차저 2곳은 반드시 정밀 계산에 포함 (근사와 실측 순위가 뒤바뀔 수 있음)
+  if (prefs.preferSupercharger) {
+    for (const sc of distinct.filter(isSupercharger).slice(0, 2)) if (!topN.includes(sc)) topN.push(sc);
+  }
+  if (topN.length === 0) return empty(windowKm, warnings.includes('NO_SUPERCHARGER') ? [] : ['NO_CANDIDATE']);
 
   // 상위 N 개 TMAP 실측 우회
   const precise = await Promise.all(
@@ -106,10 +116,10 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
     }),
   );
   const refined = precise.filter((x): x is { e: Evaluation; route: RouteSummary } => x !== null);
-  const ranked: Recommendation[] = (refined.length > 0
-    ? refined.sort((a, b) => a.e.cost.total - b.e.cost.total).map((x) => toRecommendation(x.e, x.route, true))
-    : topN.map((e) => toRecommendation(e, null, false))
-  ).map((r, i) => ({ ...r, rank: i + 1 }));
+  const results = refined.length > 0
+    ? refined.map((x) => toRecommendation(x.e, x.route, true))
+    : topN.map((e) => toRecommendation(e, null, false));
+  const ranked = orderResults(results, prefs.preferSupercharger).map((r, i) => ({ ...r, rank: i + 1 }));
 
   return {
     baseRoute: toSummary(base),
@@ -120,6 +130,37 @@ export async function recommend(req: RecommendRequest, deps: EngineDeps): Promis
     alternatives: ranked.slice(1),
     warnings,
   };
+}
+
+const isSupercharger = (e: Evaluation) => e.candidate.station.source === 'supercharger';
+
+/** 같은 장소(휴게소 등)에 운영사만 다른 충전소가 여러 개면 비용이 가장 낮은 하나만 남긴다. 슈퍼차저와 일반 충전소는 따로 본다 */
+export function dedupeSameSite(sorted: readonly Evaluation[]): Evaluation[] {
+  const kept: Evaluation[] = [];
+  for (const e of sorted) {
+    const s = e.candidate.station;
+    const dup = kept.some((k) => {
+      const t = k.candidate.station;
+      return t.source === s.source && haversineM(s.lng, s.lat, t.lng, t.lat) <= SCORING.sameSiteRadiusM;
+    });
+    if (!dup) kept.push(e);
+  }
+  return kept;
+}
+
+/**
+ * 비용순 정렬 후 상위 N. 슈퍼차저 우선이면 가장 좋은 슈퍼차저가
+ * 최적보다 허용 시간 이내로 느릴 때 1순위로 올리고, 그렇지 않아도 목록에는 반드시 남긴다.
+ */
+export function orderResults(list: readonly Recommendation[], preferSupercharger: boolean): Recommendation[] {
+  const sorted = [...list].sort((a, b) => a.cost.total - b.cost.total);
+  const sc = sorted.find((r) => r.station.operatorId === 'TE');
+  if (!preferSupercharger || !sc) return sorted.slice(0, SCORING.preciseN);
+  const others = sorted.filter((r) => r !== sc);
+  if (sc.cost.total <= sorted[0]!.cost.total + SCORING.superchargerPreferToleranceMin) {
+    return [sc, ...others].slice(0, SCORING.preciseN);
+  }
+  return [...others.slice(0, SCORING.preciseN - 1), sc];
 }
 
 function toRecommendation(e: Evaluation, route: RouteSummary | null, precise: boolean): Recommendation {
