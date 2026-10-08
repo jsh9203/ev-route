@@ -1,0 +1,15 @@
+{
+  "name": "@ev-route/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "node --disable-warning=ExperimentalWarning --import tsx src/sync/run.ts",
+    "inspect": "node --disable-warning=ExperimentalWarning --import tsx src/sync/inspect.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@ev-route/shared": "workspace:*",
+    "flatbush": "^4.6.0"
+  }
+}

@@ -38,10 +38,11 @@
 EVRoute/
 ├─ apps/
 │  ├─ web/        # Vite + React + TS + Tailwind, TanStack Query, TMAP JS SDK v2
-│  └─ api/        # Fastify + TS, zod, better-sqlite3 (운영 시 web 빌드 결과도 서빙)
+│  └─ api/        # Fastify + TS, zod, node:sqlite (운영 시 web 빌드 결과도 서빙)
+│                 #   src/sync/ 충전소 수집·적재 (pnpm sync:stations)
 ├─ packages/
 │  └─ shared/     # zod 스키마·타입, 차량 프리셋, 스코어링 상수
-├─ scripts/       # 충전소 데이터 수집·적재 (tsx)
+├─ scripts/       # 개발 보조 스크립트 (setup-git.ps1)
 ├─ data/          # stations.sqlite, 보완 데이터(supplement/*.json)  ※ DB는 gitignore
 ├─ docker/        # Dockerfile, docker-compose.yml (Phase 4)
 ├─ .env.example
@@ -53,7 +54,7 @@ EVRoute/
 | 프론트 | Vite + React + TS | 지도 중심 SPA라 SSR 불필요, 정적 빌드로 배포 단순, 앱 확장 시 재사용 |
 | 백엔드 | Fastify + zod | 경량·타입 안전, 외부 API 키를 숨기는 프록시 |
 | 공간 연산 | `@turf/turf`, `flatbush` | 수만 개 점 규모에서 PostGIS 불필요 |
-| 저장소 | SQLite (`better-sqlite3`) | 파일 1개, NAS 볼륨 마운트로 그대로 운영 |
+| 저장소 | SQLite (Node 24 내장 `node:sqlite`) | 파일 1개, 네이티브 모듈 빌드 불필요(NAS ARM/x86 무관), NAS 볼륨 마운트로 운영 |
 | 캐시 | 프로세스 내 TTL Map (인터페이스 분리) | 단일 인스턴스면 충분, 필요 시 Redis 교체 |
 | 테스트 | Vitest | 배터리 모델·스코어링·공간 로직 단위 테스트 |
 
@@ -75,7 +76,7 @@ EVRoute/
 
 ### 3.2.1 supercharge.info (테슬라 슈퍼차저)
 - `GET https://supercharge.info/service/supercharge/allSites` → 전 세계 사이트 배열. **일 1회** 받아 `address.country == "South Korea"` 필터 후 SQLite에 `source='supercharger'`로 적재.
-- 상태 매핑: `OPEN` → 후보, `CLOSED_TEMP` → 제외(표시는 함), 그 외(`VOTING`·`CONSTRUCTION`·`PLAN`·`CLOSED_PERM`) → 적재 안 함.
+- 상태 매핑: `OPEN`만 적재, 나머지(`CLOSED_TEMP`·`VOTING`·`CONSTRUCTION`·`PLAN`·`CLOSED_PERM`)는 적재 안 함.
 - 충전기 수 = `stallCount`, 출력 = `powerKilowatt`(0이면 출력 미상 → 120kW로 보수적 가정), 커넥터 = `plugs`의 nacs/ccs1 존재 여부 (없으면 `NACS`).
 - 실시간 상태: 항상 "알 수 없음"(`status.source = 'supercharger-static'`). 대신 스톨 수가 많아(평균 약 7개) 대기 위험이 낮으므로 P_wait는 "알 수 없음" 기본값 적용.
 - **한글 이름·휴게소 방향 보강**: 슈퍼차저 좌표 300m 이내에 환경공단 `C001`(고속도로 휴게소) 충전소가 있으면 그 이름·방향을 가져와 표시·방향 판정에 사용. 없으면 영문 이름 + 괄호 안 영문 방향(예: `(Gangneung)`)을 한글 지명 사전으로 변환.
@@ -173,11 +174,11 @@ d_min    = 상한(80%)까지 충전하면 목적지에 arriveSoc 로 도착 가�
 ΔT_approx = 2 × 직교거리 / v_local  +  P_exit
 v_local   : 일반도로 평균속도 (설정값, 기본 30km/h)
 P_exit    : 후보와 가장 가까운 경로 구간이 고속도로이고, 후보가 휴게소가 아니면 IC 진출입 고정 페널티 (기본 8분)
-휴게소    : 진행방향 일치(휴게소 방향 정보 vs 경로 진행방향) 시 ΔT_approx = 2분(진입·대기 동선), 불일치 시 제외
+휴게소    : 경로 진행방향 기준 오른쪽에 있으면 ΔT_approx = 2분(진입·대기 동선), 왼쪽(반대 차로)이면 제외
 ```
 - "직교거리 ≤ 50m면 0분" 규칙은 폐기 (고가도로·병행 도로 오판 위험).
 - 도로 유형 정보가 TMAP 응답에 없으면 차선책으로 "경로 구간 평균속도 ≥ 80km/h → 고속도로"로 판정.
-- 휴게소 방향 정보는 충전소 이름(예: "OO휴게소(부산방향)")에서 추출 + 수동 보정 목록. 판정 불가 시 방향 미상으로 두고 6단계 실측에 맡김.
+- **휴게소 이용 가능 방향은 기하로 판정**: 우측통행이므로 진행방향 휴게소는 도로 오른쪽에 있음. 가장 가까운 경로 구간의 진행 벡터와 (충전소 − 최근접점) 벡터의 외적 부호로 좌·우 판정. 이름이 필요 없어 `음성(남이)`처럼 괄호가 지명이 아닌 경우나 방향 표기가 없는 경우에도 동작. 경로에서 수십 m 이내로 붙은 양방향 공용 휴게소는 판정 보류 후 6단계 실측에 맡김. 이름 괄호 속 방향은 표시용으로만 사용.
 - 근사가 틀려도 최적 후보가 탈락하지 않도록 K를 넉넉히 유지, 실측 대비 근사 오차를 로그로 남겨 상수 튜닝.
 
 ### 5.4 가용 대수와 신뢰도
@@ -372,7 +373,7 @@ CREATE INDEX idx_chargers_station ON chargers(station_id);
 - **단일 컨테이너**: 멀티스테이지 빌드(web 빌드 → api 이미지에 정적 파일 포함), Fastify가 `/api`와 정적 파일을 함께 서빙. 포트 1개.
 - `data/`는 볼륨 마운트 (SQLite DB, 보완 데이터 유지).
 - 충전소 정적 데이터 갱신: 컨테이너 내 일 1회 스케줄(또는 기동 시 오래됐으면 갱신).
-- `better-sqlite3`는 네이티브 모듈 → **NAS CPU 아키텍처(x86_64/ARM64) 확인** 후 해당 플랫폼으로 빌드 (`docker buildx --platform`).
+- SQLite는 Node 내장(`node:sqlite`)이라 네이티브 빌드가 없음 → 공식 `node:24` 이미지면 NAS CPU 아키텍처와 무관. (`node:sqlite`는 아직 실험 기능 표시가 붙어 있으므로 Node 업그레이드 시 변경 사항 확인)
 - 외부 접속 시 NAS 리버스 프록시 + HTTPS, 쿼터 보호용 레이트리밋 필수.
 
 ---
@@ -382,7 +383,7 @@ CREATE INDEX idx_chargers_station ON chargers(station_id);
 | Phase | 내용 | 완료 기준 |
 |---|---|---|
 | **0. 검증** | 키 발급, §3.3 체크리스트 (특히 🔴 3개) | 샘플 호출 3종 성공, 슈퍼차저 포함 여부·커넥터 매핑·상태 조회 방식 결론 문서화 |
-| **1. 기반·데이터** | 모노레포, shared 스키마·프리셋, 충전소 덤프 → SQLite, 커넥터 매핑, 휴게소·방향 추출, (필요 시) 슈퍼차저 보완 목록 | 전국 충전소 적재, bbox 질의·매핑 단위 테스트 |
+| **1. 기반·데이터** ✅ | 모노레포, shared 스키마·프리셋, 충전소 덤프 → SQLite, 커넥터 매핑, 휴게소·방향 추출, 슈퍼차저 동기화 | 전국 충전소 적재, bbox 질의·매핑 단위 테스트 — **완료 (2026-10-08)**: 충전소 100,693곳·충전기 523,487대 적재, 공개 충전소 56,968곳 메모리 적재 0.7초, Model Y 급속 가능 20,764곳, 테스트 20개 통과 |
 | **2. 추천 엔진** | TMAP 클라이언트, 배터리 모델·충전 곡선, 후보 추출, 우회 근사, 상태 결합(A/B), 비용함수, 정밀 재경로 | 대표 시나리오 테스트 통과, 근사 vs 실측 ΔT 오차 로그 |
 | **3. 웹 UI** | 지도·검색·결과 패널·경로/구간/마커 렌더링 | 입력 → 추천 → 대안 전환 전체 동작 |
 | **4. 품질·배포** | 에러/빈 결과 처리, 로깅, 레이트리밋, Dockerfile·compose, README | 로컬 Docker 실행 성공, API 장애 시 degrade 확인 |
