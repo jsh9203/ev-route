@@ -49,9 +49,13 @@ export function listAvailability(s: StationListItem): Availability {
 export const AVAILABILITY_COLOR: Record<Availability, string> = {
   good: '#16a34a',
   few: '#ea580c',
-  none: '#dc2626',
+  /** 모두 충전 중 — 빨강은 슈퍼차저 전용이라 짙은 회색 */
+  none: '#1e293b',
   unknown: '#64748b',
 };
+
+/** 슈퍼차저 마커 색 (가용 상태와 무관) */
+export const SUPERCHARGER_COLOR = '#dc2626';
 
 const R = 6_371_008.8;
 const rad = (d: number) => (d * Math.PI) / 180;

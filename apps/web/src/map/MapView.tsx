@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { LngLat, PlaceResult, RecommendResponse, StationListItem } from '@ev-route/shared';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import { AVAILABILITY_COLOR, availabilityOf, listAvailability, slicePolyline } from '../lib/format';
+import { AVAILABILITY_COLOR, availabilityOf, listAvailability, slicePolyline, SUPERCHARGER_COLOR } from '../lib/format';
 import { labelPin, rankPin, stationPin, type MarkerIcon } from './markers';
 import { loadTmap, type TMap, type TOverlay, type Tmapv2Namespace } from './tmap';
 
@@ -113,7 +113,8 @@ export function MapView(props: Props) {
     if (selected?.route) out.push(new T.Polyline({ path: toPath(selected.route.polyline), strokeColor: '#2563eb', strokeWeight: 6, map }));
     for (const r of recs) {
       const isSel = r.rank === selectedRank;
-      const m = marker(T, map, r.station.lat, r.station.lng, rankPin(r.rank, AVAILABILITY_COLOR[availabilityOf(r)], isSel), r.station.name, isSel ? 30 : 10);
+      const color = r.station.operatorId === 'TE' ? SUPERCHARGER_COLOR : AVAILABILITY_COLOR[availabilityOf(r)];
+      const m = marker(T, map, r.station.lat, r.station.lng, rankPin(r.rank, color, isSel), r.station.name, isSel ? 30 : 10);
       m.addListener('click', () => cb.current.onSelectRank(r.rank));
       out.push(m);
     }
@@ -125,7 +126,8 @@ export function MapView(props: Props) {
     if (mode !== 'stations') return [];
     return stations.map((s) => {
       const isSel = s.id === selectedStationId;
-      const icon = stationPin(AVAILABILITY_COLOR[listAvailability(s)], { supercharger: s.operatorId === 'TE', selected: isSel });
+      const color = s.operatorId === 'TE' ? SUPERCHARGER_COLOR : AVAILABILITY_COLOR[listAvailability(s)];
+      const icon = stationPin(color, { selected: isSel });
       const m = marker(T, map, s.lat, s.lng, icon, s.name, isSel ? 30 : 10);
       m.addListener('click', () => cb.current.onSelectStation(s.id));
       return m;
@@ -161,11 +163,33 @@ export function MapView(props: Props) {
   return (
     <div className="relative h-full w-full">
       <div id={containerId} ref={containerRef} className="h-full w-full" />
+      {ready && ((mode === 'route' && result?.recommended) || (mode === 'stations' && stations.length > 0)) && <Legend />}
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-sm text-slate-500">
           {error ?? config.error?.message ?? '지도를 불러오는 중…'}
         </div>
       )}
+    </div>
+  );
+}
+
+const LEGEND: [string, string][] = [
+  [AVAILABILITY_COLOR.good, '사용 가능 2기 이상'],
+  [AVAILABILITY_COLOR.few, '사용 가능 1기'],
+  [AVAILABILITY_COLOR.none, '모두 충전 중'],
+  [AVAILABILITY_COLOR.unknown, '실시간 정보 없음'],
+  [SUPERCHARGER_COLOR, '테슬라 슈퍼차저'],
+];
+
+function Legend() {
+  return (
+    <div className="pointer-events-none absolute bottom-8 left-3 rounded-lg bg-white/95 px-3 py-2 text-[11px] text-slate-600 shadow">
+      {LEGEND.map(([color, label]) => (
+        <div key={label} className="flex items-center gap-1.5 py-0.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+          {label}
+        </div>
+      ))}
     </div>
   );
 }

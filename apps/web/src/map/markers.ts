@@ -41,16 +41,15 @@ export function labelPin(label: '출발' | '도착', color: string): MarkerIcon 
   return { url: toUrl(svg), width: 52, height: 40 };
 }
 
-/** 충전소 찾기 결과 핀: 원형 배지 + 번개. 슈퍼차저는 빨간 테두리 */
-export function stationPin(color: string, opts: { supercharger: boolean; selected: boolean }): MarkerIcon {
+/** 충전소 찾기 결과 핀: 원형 배지 + 번개. 색은 호출부에서 결정 (슈퍼차저는 빨강) */
+export function stationPin(color: string, opts: { selected: boolean }): MarkerIcon {
   const s = opts.selected ? 1.3 : 1;
   const w = Math.round(30 * s), h = Math.round(38 * s);
-  const ring = opts.supercharger ? '#dc2626' : 'white';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 30 38">
     <defs>${SHADOW}</defs>
     <g filter="url(#s)">
-      <path d="M11 30h8l-4 6z" fill="${ring}"/>
-      <circle cx="15" cy="15" r="13" fill="${color}" stroke="${ring}" stroke-width="${opts.supercharger ? 3 : 2.5}"/>
+      <path d="M11 30h8l-4 6z" fill="white"/>
+      <circle cx="15" cy="15" r="13" fill="${color}" stroke="white" stroke-width="2.5"/>
     </g>
     <g transform="translate(3 3)"><path d="${BOLT}" fill="white"/></g>
   </svg>`;

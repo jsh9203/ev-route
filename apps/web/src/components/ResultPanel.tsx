@@ -1,5 +1,5 @@
 import type { Recommendation, RecommendResponse } from '@ev-route/shared';
-import { AVAILABILITY_COLOR, availabilityOf, clockAfter, formatDuration, formatKm, WARNING_TEXT } from '../lib/format';
+import { AVAILABILITY_COLOR, availabilityOf, clockAfter, formatDuration, formatKm, SUPERCHARGER_COLOR, WARNING_TEXT } from '../lib/format';
 
 interface Props {
   result: RecommendResponse;
@@ -89,7 +89,10 @@ function RecommendationCard({ r, note, selected, onClick }: { r: Recommendation;
       className={`block w-full rounded-xl border bg-white p-3 text-left transition ${selected ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300'}`}
     >
       <div className="flex items-start gap-2">
-        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: color }}>
+        <span
+          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+          style={{ background: s.operatorId === 'TE' ? SUPERCHARGER_COLOR : color }}
+        >
           {r.rank}
         </span>
         <div className="min-w-0 flex-1">
