@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { PlaceResult, StationListItem } from '@ev-route/shared';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { AVAILABILITY_COLOR, formatDistance, listAvailability } from '../lib/format';
+import { availabilityTextColor, formatDistance, listAvailability } from '../lib/format';
 
 type Search =
   | { kind: 'name'; q: string }
@@ -135,7 +135,7 @@ export function StationFinder({ presetId, origin, destination, selectedId, onSel
 
 function StationCard({ s, selected, onClick }: { s: StationListItem; selected: boolean; onClick: () => void }) {
   const c = s.chargers;
-  const color = AVAILABILITY_COLOR[listAvailability(s)];
+  const color = availabilityTextColor(listAvailability(s));
   const status =
     s.status.source === 'realtime'
       ? `사용 가능 ${c.available} · 충전 중 ${c.busy}${c.unknown ? ` · 미확인 ${c.unknown}` : ''} / ${c.eligible}기`

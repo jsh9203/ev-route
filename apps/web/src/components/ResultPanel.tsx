@@ -1,5 +1,5 @@
 import type { Recommendation, RecommendResponse } from '@ev-route/shared';
-import { AVAILABILITY_COLOR, availabilityOf, clockAfter, formatDuration, formatKm, SUPERCHARGER_COLOR, WARNING_TEXT } from '../lib/format';
+import { AVAILABILITY_COLOR, availabilityOf, availabilityTextColor, clockAfter, formatDuration, formatKm, SUPERCHARGER_COLOR, WARNING_TEXT } from '../lib/format';
 
 interface Props {
   result: RecommendResponse;
@@ -131,7 +131,7 @@ function RecommendationCard({ r, note, selected, onClick }: { r: Recommendation;
       )}
 
       <div className="mt-2 flex items-center justify-between text-xs">
-        <span style={{ color }} className="font-medium">
+        <span style={{ color: availabilityTextColor(availabilityOf(r)) }} className="font-medium">
           {s.status.source === 'realtime'
             ? `사용 가능 ${c.available} · 충전 중 ${c.busy}${c.unknown ? ` · 미확인 ${c.unknown}` : ''} / ${c.eligible}기`
             : s.status.source === 'supercharger-static'

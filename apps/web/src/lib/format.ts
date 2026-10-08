@@ -50,10 +50,14 @@ export const AVAILABILITY_COLOR: Record<Availability, string> = {
   good: '#16a34a',
   /** 출발 핀·선택 경로(#2563eb)와 구분되도록 하늘색 계열 */
   few: '#0284c7',
-  /** 모두 충전 중 — 빨강은 슈퍼차저 전용이라 짙은 회색 */
-  none: '#1e293b',
-  unknown: '#64748b',
+  /** 모두 충전 중 — 지금은 못 쓰는 곳이라 연한 회색 */
+  none: '#94a3b8',
+  /** 실시간 정보 없음 */
+  unknown: '#111827',
 };
+
+/** 카드 글자색: 연한 회색은 흰 바탕에서 읽기 어려워 글자만 한 단계 진하게 */
+export const availabilityTextColor = (a: Availability) => (a === 'none' ? '#64748b' : AVAILABILITY_COLOR[a]);
 
 /** 슈퍼차저 마커 색 (가용 상태와 무관) */
 export const SUPERCHARGER_COLOR = '#dc2626';
